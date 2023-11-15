@@ -28,7 +28,10 @@ enum Player {
 }
 
 #[derive(Component)]
-struct Ball;
+struct Ball {
+    direction: Vec3,
+    speed: f32
+}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
@@ -47,7 +50,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_xyz(0., 0., 0.).with_scale(Vec3::new(0.25,0.25,0.25)),
             ..default()
         },
-        Ball
+        Ball {
+            direction: Vec3::new(10.,10., 0.).normalize(),
+            speed: 100.0
+        }
     ));
     commands.spawn((
         SpriteBundle {
@@ -75,15 +81,36 @@ fn sprite_movement(time: Res<Time>, mut sprite_position: Query<(&mut Direction, 
     }
 }
 
-fn ball_movement(time: Res<Time>, mut balls: Query<(&mut Ball, &mut Transform)>, mut players: Query<(&mut Player, &mut Transform)>) {
+fn ball_movement(time: Res<Time>, mut balls: Query<(&mut Ball, &mut Transform)>, players: Query<(& Player, & Transform), Without<Ball>>) {
 
+    // check collision with players
     for (mut ball, mut ball_transform) in &mut balls {
-        for (mut player, mut player_transform) in &mut players {
-            if ball_transform.translation.x >= player_transform.translation.x {
+        let mut x = ball_transform.translation.x;
+        let mut y = ball_transform.translation.x;
+        for (player, mut player_transform) in &players {
+            match *player {
+                Player::One => {
 
+                    if x >= player_transform.translation.x {
+                        ball.direction.x *= -1.
+                    }
+                }
+                Player::Two => {
+
+                    if y <= player_transform.translation.x {
+                        ball.direction.x *= -1.
+                    }
+                }
             }
         }
+        x += ball.direction.x * ball.speed *time.delta_seconds();
+        y += ball.direction.y * ball.speed *time.delta_seconds();
 
-
+        if y > 600. {
+            ball.direction.y *= -1.
+        }
+        if y < 0. {
+            ball.direction.y += -1.
+        }
     }
 }
