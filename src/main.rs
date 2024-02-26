@@ -109,8 +109,8 @@ fn player_movement(
                 }
                 // Fix hard coded screen size
                 // This is a quick fix to prevent the paddles from going off screen
-                if ((transform.translation.y < 300.0 && direction == 1.)
-                    || transform.translation.y > -300.0 && direction == -1.)
+                if (transform.translation.y < 300.0 && direction == 1.)
+                    || (transform.translation.y > -300.0 && direction == -1.)
                 {
                     transform.translation.y += player.speed * direction * time.delta_seconds()
                 }
@@ -126,8 +126,8 @@ fn player_movement(
                 }
                 // Fix hard coded screen size
                 // This is a quick fix to prevent the paddles from going off screen
-                if ((transform.translation.y < 300.0 && direction == 1.)
-                    || transform.translation.y > -300.0 && direction == -1.)
+                if (transform.translation.y < 300.0 && direction == 1.)
+                    || (transform.translation.y > -300.0 && direction == -1.)
                 {
                     transform.translation.y += player.speed * direction * time.delta_seconds()
                 }
