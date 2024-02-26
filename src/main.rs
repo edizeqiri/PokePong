@@ -107,7 +107,13 @@ fn player_movement(
                 if keys.pressed(KeyCode::S) {
                     direction = -1.;
                 }
-                transform.translation.y += player.speed * direction * time.delta_seconds()
+                // Fix hard coded screen size
+                // This is a quick fix to prevent the paddles from going off screen
+                if ((transform.translation.y < 300.0 && direction == 1.)
+                    || transform.translation.y > -300.0 && direction == -1.)
+                {
+                    transform.translation.y += player.speed * direction * time.delta_seconds()
+                }
             }
             Paddle::Two => {
                 let mut direction = 0.;
@@ -118,7 +124,13 @@ fn player_movement(
                 if keys.pressed(KeyCode::Down) {
                     direction = -1.;
                 }
-                transform.translation.y += player.speed * direction * time.delta_seconds()
+                // Fix hard coded screen size
+                // This is a quick fix to prevent the paddles from going off screen
+                if ((transform.translation.y < 300.0 && direction == 1.)
+                    || transform.translation.y > -300.0 && direction == -1.)
+                {
+                    transform.translation.y += player.speed * direction * time.delta_seconds()
+                }
             }
         }
     }
