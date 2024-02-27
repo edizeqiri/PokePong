@@ -14,6 +14,7 @@ fn main() {
         .add_systems(Update, ball_collision_system)
         .add_systems(Update, player_movement)
         .add_systems(Update, sprite_movement)
+        .add_systems(Update, set_window_size)
         .run();
 }
 
@@ -23,6 +24,7 @@ enum Direction {
     Down,
 }
 
+#[derive(Component)]
 enum Paddle {
     One,
     Two,
@@ -40,8 +42,33 @@ struct Ball {
     direction: Vec3,
 }
 
+#[derive(Component)]
+struct Score {
+    score: i32,
+}
+
+#[derive(Debug, Default, Resource)]
+struct PokeSize {
+    width: f32,
+    height: f32,
+}
+
+fn set_window_size(mut window: Query<&mut Window>, mut game_size: ResMut<PokeSize>) {
+    for mut window in window.iter_mut() {
+        game_size.width = window.width();
+        game_size.height = window.height();
+        debug!(
+            "Global GameSize updated to: width {} height {}",
+            game_size.width, game_size.height
+        );
+    }
+}
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
+    commands.insert_resource(PokeSize {
+        width: 800.0,
+        height: 800.0,
+    });
     commands.spawn((
         SpriteBundle {
             texture: asset_server.load("pokepaddle.png"),
@@ -61,7 +88,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Ball {
             speed: 100.,
-            direction: Vec3::new(1., 0., 0.).normalize(),
+            direction: Vec3::new(10., 10., 0.).normalize(),
         },
     ));
     commands.spawn((
