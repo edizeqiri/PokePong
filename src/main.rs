@@ -34,6 +34,7 @@ enum Paddle {
 struct Player {
     paddle: Paddle,
     speed: f32,
+    size: f32,
 }
 
 #[derive(Component)]
@@ -54,14 +55,14 @@ struct PokeSize {
 }
 
 fn set_window_size(mut window: Query<&mut Window>, mut game_size: ResMut<PokeSize>) {
-    for mut window in window.iter_mut() {
+    window.iter_mut().for_each(|window| {
         game_size.width = window.width();
         game_size.height = window.height();
         debug!(
             "Global GameSize updated to: width {} height {}",
             game_size.width, game_size.height
         );
-    }
+    });
 }
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
@@ -78,6 +79,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Player {
             paddle: Paddle::One,
             speed: 300.,
+            size: 200.,
         },
     ));
     commands.spawn((
@@ -87,7 +89,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Ball {
-            speed: 100.,
+            speed: 500.,
             direction: Vec3::new(10., 10., 0.).normalize(),
         },
     ));
@@ -100,6 +102,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Player {
             paddle: Paddle::Two,
             speed: 300.,
+            size: 200.,
         },
     ));
 }
@@ -122,6 +125,7 @@ fn player_movement(
     time: Res<Time>,
     keys: Res<Input<KeyCode>>,
     mut player_query: Query<(&Player, &mut Transform)>,
+    game_size: Res<PokeSize>,
 ) {
     for (player, mut transform) in player_query.iter_mut() {
         match player.paddle {
@@ -136,8 +140,8 @@ fn player_movement(
                 }
                 // Fix hard coded screen size
                 // This is a quick fix to prevent the paddles from going off screen
-                if (transform.translation.y < 300.0 && direction == 1.)
-                    || (transform.translation.y > -300.0 && direction == -1.)
+                if (transform.translation.y < game_size.height / 2.0 && direction == 1.)
+                    || (transform.translation.y > -(game_size.height / 2.0) && direction == -1.)
                 {
                     transform.translation.y += player.speed * direction * time.delta_seconds()
                 }
@@ -153,8 +157,8 @@ fn player_movement(
                 }
                 // Fix hard coded screen size
                 // This is a quick fix to prevent the paddles from going off screen
-                if (transform.translation.y < 300.0 && direction == 1.)
-                    || (transform.translation.y > -300.0 && direction == -1.)
+                if (transform.translation.y < game_size.height / 2.0 && direction == 1.)
+                    || (transform.translation.y > -(game_size.height / 2.0) && direction == -1.)
                 {
                     transform.translation.y += player.speed * direction * time.delta_seconds()
                 }
@@ -172,18 +176,54 @@ fn ball_movement(time: Res<Time>, mut ball_query: Query<(&Ball, &mut Transform)>
 fn ball_collision_system(
     mut ball_query: Query<(&mut Ball, &Transform)>,
     player_query: Query<(&Player, &Transform)>,
+    game_size: Res<PokeSize>,
 ) {
     for (mut ball, ball_transform) in ball_query.iter_mut() {
+        // check wall collision
+        if game_size.height / 2.0 < ball_transform.translation.y {
+            ball.direction.y *= -1.;
+        }
+        if -(game_size.height / 2.0) > ball_transform.translation.y {
+            ball.direction.y *= -1.;
+        }
+        if game_size.width / 2.0 < ball_transform.translation.x {
+            ball.direction.x *= -1.;
+        }
+        if -(game_size.width / 2.0) > ball_transform.translation.x {
+            ball.direction.x *= -1.;
+        }
+
+        // check player collision
         for (player, player_transform) in &player_query {
             match player.paddle {
                 Paddle::One => {
-                    if player_transform.translation.x <= ball_transform.translation.x {
-                        ball.direction.x *= -1.
+                    if player_transform.translation.x + 30. >= ball_transform.translation.x
+                        && ball_transform.translation.y
+                            <= (player_transform.translation.y + player.size / 2.)
+                        && ball_transform.translation.y
+                            >= (player_transform.translation.y - player.size / 2.)
+                    {
+                        ball.direction.x *= -1.;
+
+                        info!(
+                            "paddle was xy {},{} ",
+                            player_transform.translation.x, player_transform.translation.y
+                        )
                     }
                 }
                 Paddle::Two => {
-                    if player_transform.translation.x >= ball_transform.translation.x {
-                        ball.direction.x *= -1.
+                    if player_transform.translation.x - 30. <= ball_transform.translation.x
+                        && ball_transform.translation.y
+                            <= (player_transform.translation.y + player.size / 2.)
+                        && ball_transform.translation.y
+                            >= (player_transform.translation.y - player.size / 2.)
+                    {
+                        ball.direction.x *= -1.;
+
+                        info!(
+                            "paddle was xy {},{} ",
+                            player_transform.translation.x, player_transform.translation.y
+                        )
                     }
                 }
             }
