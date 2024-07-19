@@ -125,7 +125,7 @@ fn sprite_movement(time: Res<Time>, mut sprite_position: Query<(&mut Direction, 
 }
 fn player_movement(
     time: Res<Time>,
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<(&Player, &mut Transform)>,
     game_size: Res<PokeSize>,
 ) {
@@ -134,10 +134,10 @@ fn player_movement(
             Paddle::One => {
                 let mut direction = 0.;
 
-                if keys.pressed(KeyCode::W) {
+                if keys.pressed(KeyCode::KeyW) {
                     direction = 1.;
                 }
-                if keys.pressed(KeyCode::S) {
+                if keys.pressed(KeyCode::KeyS) {
                     direction = -1.;
                 }
                 // Fix hard coded screen size
@@ -151,10 +151,10 @@ fn player_movement(
             Paddle::Two => {
                 let mut direction = 0.;
 
-                if keys.pressed(KeyCode::Up) {
+                if keys.pressed(KeyCode::ArrowUp) {
                     direction = 1.;
                 }
-                if keys.pressed(KeyCode::Down) {
+                if keys.pressed(KeyCode::ArrowDown) {
                     direction = -1.;
                 }
                 // Fix hard coded screen size
