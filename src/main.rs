@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 fn main() {
     App::new()
-        .insert_resource(ClearColor(Color::rgb(0.984, 0.929, 0.761)))
+        .insert_resource(ClearColor(Color::srgb(0.984, 0.929, 0.761)))
         .add_plugins(DefaultPlugins.set(
             // This sets image filtering to nearest
             // This is done to prevent textures with low resolution (e.g. pixel art) from being blurred
