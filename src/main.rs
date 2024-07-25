@@ -11,23 +11,13 @@ fn main() {
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, ball_movement)
-        .add_systems(Update, ball_collision_system)
+        .add_systems(Update, ball_player_bounce)
+        .add_systems(Update, ball_wall_bounce)
+        .add_systems(Update, ball_out)
         .add_systems(Update, player_movement)
-        .add_systems(Update, sprite_movement)
         .add_systems(Update, set_window_size)
+        .add_systems(Update, update_score_board)
         .run();
-}
-
-#[derive(Component)]
-enum Direction {
-    Up,
-    Down,
-}
-
-#[derive(Component)]
-enum Paddle {
-    One,
-    Two,
 }
 
 #[derive(Component)]
@@ -35,19 +25,22 @@ struct Player {
     paddle: Paddle,
     speed: f32,
     size: f32,
+    score: u32,
+}
+
+enum Paddle {
+    One,
+    Two,
 }
 
 #[derive(Component)]
 struct Ball {
     speed: f32,
     direction: Vec3,
-    velocity: f32,
 }
 
 #[derive(Component)]
-struct Score {
-    score: i32,
-}
+struct ScoreBoard;
 
 #[derive(Debug, Default, Resource)]
 struct PokeSize {
@@ -72,6 +65,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         height: 800.0,
     });
     commands.spawn((
+        ScoreBoard,
+        Text2dBundle {
+            text: Text::from_section(
+                "0:0",
+                TextStyle {
+                    color: Color::BLACK,
+                    font_size: 24.0,
+                    ..default()
+                },
+            ),
+            transform: Transform::from_xyz(0., 450., 0.),
+            ..default()
+        },
+    ));
+    commands.spawn((
         SpriteBundle {
             texture: asset_server.load("pokepaddle.png"),
             transform: Transform::from_xyz(-500., 0., 0.),
@@ -81,6 +89,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             paddle: Paddle::One,
             speed: 500.,
             size: 200.,
+            score: 0,
         },
     ));
     commands.spawn((
@@ -92,7 +101,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Ball {
             speed: 500.,
             direction: Vec3::new(10., 10., 0.).normalize(),
-            velocity: 1.,
         },
     ));
     commands.spawn((
@@ -105,24 +113,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             paddle: Paddle::Two,
             speed: 300.,
             size: 200.,
+            score: 0,
         },
     ));
 }
 
-fn sprite_movement(time: Res<Time>, mut sprite_position: Query<(&mut Direction, &mut Transform)>) {
-    for (mut logo, mut transform) in &mut sprite_position {
-        match *logo {
-            Direction::Up => transform.translation.y += 150. * time.delta_seconds(),
-            Direction::Down => transform.translation.y -= 150. * time.delta_seconds(),
-        }
-
-        if transform.translation.y > 100. {
-            *logo = Direction::Down;
-        } else if transform.translation.y < -100. {
-            *logo = Direction::Up;
-        }
-    }
-}
 fn player_movement(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -171,72 +166,53 @@ fn player_movement(
 
 fn ball_movement(time: Res<Time>, mut ball_query: Query<(&Ball, &mut Transform)>) {
     for (ball, mut transform) in ball_query.iter_mut() {
-        transform.translation += ball.direction * ball.speed * ball.velocity * time.delta_seconds();
+        transform.translation += ball.direction * ball.speed * time.delta_seconds();
     }
 }
 
-fn ball_collision_system(
-    mut ball_query: Query<(&mut Ball, &Transform)>,
-    player_query: Query<(&Player, &Transform)>,
-    game_size: Res<PokeSize>,
-) {
+fn ball_wall_bounce(mut ball_query: Query<(&mut Ball, &mut Transform)>, game_size: Res<PokeSize>) {
     for (mut ball, ball_transform) in ball_query.iter_mut() {
-        // check wall collision
-        wall_collision_ball(&game_size, ball_transform, &mut ball);
-
-        // check player collision
-        player_collision_ball(&player_query, ball_transform, ball);
+        // Top wall
+        if game_size.height / 2.0 < ball_transform.translation.y {
+            ball.direction.y *= -1.;
+        }
+        // Bottom wall
+        if -(game_size.height / 2.0) > ball_transform.translation.y {
+            ball.direction.y *= -1.;
+        }
     }
 }
 
-fn wall_collision_ball(
-    game_size: &Res<'_, PokeSize>,
-    ball_transform: &Transform,
-    ball: &mut Mut<'_, Ball>,
+fn ball_player_bounce(
+    mut ball_query: Query<(&mut Ball, &mut Transform)>,
+    player_query: Query<(&Player, &Transform), Without<Ball>>,
 ) {
-    if game_size.height / 2.0 < ball_transform.translation.y {
-        ball.direction.y *= -1.;
-    }
-    if -(game_size.height / 2.0) > ball_transform.translation.y {
-        ball.direction.y *= -1.;
-    }
-    if game_size.width / 2.0 < ball_transform.translation.x {
-        ball.direction.x *= -1.;
-    }
-    if -(game_size.width / 2.0) > ball_transform.translation.x {
-        ball.direction.x *= -1.;
-    }
-}
+    for (mut ball, mut ball_transform) in ball_query.iter_mut() {
+        for (player, player_transform) in player_query.iter() {
+            match player.paddle {
+                Paddle::One => {
+                    if player_transform.translation.x + 30. >= ball_transform.translation.x
+                        && ball_transform.translation.y
+                            <= (player_transform.translation.y + player.size / 2.)
+                        && ball_transform.translation.y
+                            >= (player_transform.translation.y - player.size / 2.)
+                    {
+                        ball.direction.x *= -1.;
 
-fn player_collision_ball(
-    player_query: &Query<'_, '_, (&Player, &Transform)>,
-    ball_transform: &Transform,
-    mut ball: Mut<'_, Ball>,
-) {
-    for (player, player_transform) in player_query {
-        match player.paddle {
-            Paddle::One => {
-                if player_transform.translation.x + 30. >= ball_transform.translation.x
-                    && ball_transform.translation.y
-                        <= (player_transform.translation.y + player.size / 2.)
-                    && ball_transform.translation.y
-                        >= (player_transform.translation.y - player.size / 2.)
-                {
-                    ball.direction.x *= -1.;
-
-                    // speed up ball
-                    speed_up_ball(ball_transform, player_transform, player, &mut ball);
+                        // speed up ball
+                        speed_up_ball(&mut ball_transform, player_transform, player, &mut ball);
+                    }
                 }
-            }
-            Paddle::Two => {
-                if player_transform.translation.x - 30. <= ball_transform.translation.x
-                    && ball_transform.translation.y
-                        <= (player_transform.translation.y + player.size / 2.)
-                    && ball_transform.translation.y
-                        >= (player_transform.translation.y - player.size / 2.)
-                {
-                    ball.direction.x *= -1.;
-                    speed_up_ball(ball_transform, player_transform, player, &mut ball);
+                Paddle::Two => {
+                    if player_transform.translation.x - 30. <= ball_transform.translation.x
+                        && ball_transform.translation.y
+                            <= (player_transform.translation.y + player.size / 2.)
+                        && ball_transform.translation.y
+                            >= (player_transform.translation.y - player.size / 2.)
+                    {
+                        ball.direction.x *= -1.;
+                        speed_up_ball(&mut ball_transform, player_transform, player, &mut ball);
+                    }
                 }
             }
         }
@@ -244,7 +220,7 @@ fn player_collision_ball(
 }
 
 fn speed_up_ball(
-    ball_transform: &Transform,
+    ball_transform: &mut Mut<'_, Transform>,
     player_transform: &Transform,
     player: &Player,
     ball: &mut Mut<'_, Ball>,
@@ -252,10 +228,59 @@ fn speed_up_ball(
     if ball_transform.translation.y
         <= (player_transform.translation.y + ((player.size / 2.) * 2. / 3.))
     {
-        ball.velocity += 0.05
+        ball.speed += 0.05
     } else if ball_transform.translation.y
         <= (player_transform.translation.y + ((player.size / 2.) * 1. / 3.))
     {
-        ball.velocity += 0.1
+        ball.speed += 0.1
+    }
+}
+
+fn ball_out(
+    mut ball_query: Query<(&mut Ball, &mut Transform)>,
+    mut player_query: Query<&mut Player>,
+    game_size: Res<PokeSize>,
+) {
+    for (mut ball, mut ball_transform) in ball_query.iter_mut() {
+        // Right
+        if game_size.width / 2.0 < ball_transform.translation.x {
+            ball_transform.translation = Vec3::new(0., 0., 0.);
+            ball.speed = 500.;
+
+            for mut player in player_query.iter_mut() {
+                if let Paddle::One = player.paddle {
+                    player.score += 1
+                }
+            }
+        }
+        // Left
+        if -(game_size.width / 2.0) > ball_transform.translation.x {
+            ball_transform.translation = Vec3::new(0., 0., 0.);
+            ball.speed = 500.;
+
+            for mut player in player_query.iter_mut() {
+                if let Paddle::Two = player.paddle {
+                    player.score += 1
+                }
+            }
+        }
+    }
+}
+
+fn update_score_board(
+    mut score_board_query: Query<&mut Text, With<ScoreBoard>>,
+    player_query: Query<&Player>,
+) {
+    for mut score_board in &mut score_board_query {
+        let mut player_one_score = 0;
+        let mut player_two_score = 0;
+
+        for player in player_query.iter() {
+            match player.paddle {
+                Paddle::One => player_one_score = player.score,
+                Paddle::Two => player_two_score = player.score,
+            }
+        }
+        score_board.sections[0].value = format!("{player_one_score}:{player_two_score}");
     }
 }
