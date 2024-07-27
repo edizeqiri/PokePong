@@ -10,14 +10,19 @@ fn main() {
             ImagePlugin::default_nearest(),
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, ball_movement)
-        .add_systems(FixedUpdate, ball_player_bounce)
-        .add_systems(FixedUpdate, ball_wall_bounce)
-        .add_systems(FixedUpdate, ball_out)
-        .add_systems(FixedUpdate, player_movement)
-        .add_systems(Update, set_window_size)
-        .add_systems(Update, update_score_board)
-        .add_systems(Update, draw_collider_gizmo)
+        .add_systems(
+            FixedUpdate,
+            (
+                ball_movement,
+                ball_player_bounce,
+                ball_wall_bounce,
+                ball_out,
+                player_movement,
+            )
+                .chain(),
+        )
+        .add_systems(Update, (set_window_size, update_score_board).chain())
+        // .add_systems(Update, (draw_collider_gizmo).chain())
         .run();
 }
 
@@ -327,5 +332,3 @@ fn draw_collider_gizmo(collider_query: Query<(&BoxCollider, &Transform)>, mut gi
         )
     }
 }
-
-fn collider(Query: BoxCollider) {}
