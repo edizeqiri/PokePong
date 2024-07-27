@@ -11,12 +11,13 @@ fn main() {
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, ball_movement)
-        .add_systems(Update, ball_player_bounce)
-        .add_systems(Update, ball_wall_bounce)
-        .add_systems(Update, ball_out)
-        .add_systems(Update, player_movement)
+        .add_systems(FixedUpdate, ball_player_bounce)
+        .add_systems(FixedUpdate, ball_wall_bounce)
+        .add_systems(FixedUpdate, ball_out)
+        .add_systems(FixedUpdate, player_movement)
         .add_systems(Update, set_window_size)
         .add_systems(Update, update_score_board)
+        .add_systems(Update, draw_collider_gizmo)
         .run();
 }
 
@@ -24,7 +25,6 @@ fn main() {
 struct Player {
     paddle: Paddle,
     speed: f32,
-    size: f32,
     score: u32,
 }
 
@@ -37,6 +37,12 @@ enum Paddle {
 struct Ball {
     speed: f32,
     direction: Vec3,
+}
+
+#[derive(Component)]
+struct BoxCollider {
+    width: f32,
+    height: f32,
 }
 
 #[derive(Component)]
@@ -58,6 +64,7 @@ fn set_window_size(mut window: Query<&mut Window>, mut game_size: ResMut<PokeSiz
         );
     });
 }
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
     commands.insert_resource(PokeSize {
@@ -75,7 +82,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ..default()
                 },
             ),
-            transform: Transform::from_xyz(0., 450., 0.),
+            transform: Transform::from_xyz(0., 350., 0.),
             ..default()
         },
     ));
@@ -87,9 +94,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Player {
             paddle: Paddle::One,
-            speed: 500.,
-            size: 200.,
+            speed: 300.,
             score: 0,
+        },
+        BoxCollider {
+            width: 55.,
+            height: 150.,
         },
     ));
     commands.spawn((
@@ -99,8 +109,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Ball {
-            speed: 500.,
+            speed: 200.,
             direction: Vec3::new(10., 10., 0.).normalize(),
+        },
+        BoxCollider {
+            width: 45.,
+            height: 45.,
         },
     ));
     commands.spawn((
@@ -112,8 +126,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Player {
             paddle: Paddle::Two,
             speed: 300.,
-            size: 200.,
             score: 0,
+        },
+        BoxCollider {
+            width: 55.,
+            height: 150.,
         },
     ));
 }
@@ -170,14 +187,17 @@ fn ball_movement(time: Res<Time>, mut ball_query: Query<(&Ball, &mut Transform)>
     }
 }
 
-fn ball_wall_bounce(mut ball_query: Query<(&mut Ball, &mut Transform)>, game_size: Res<PokeSize>) {
-    for (mut ball, ball_transform) in ball_query.iter_mut() {
+fn ball_wall_bounce(
+    mut ball_query: Query<(&mut Ball, &mut Transform, &mut BoxCollider)>,
+    game_size: Res<PokeSize>,
+) {
+    for (mut ball, ball_transform, collider) in ball_query.iter_mut() {
         // Top wall
-        if game_size.height / 2.0 < ball_transform.translation.y {
+        if game_size.height / 2.0 < ball_transform.translation.y + collider.height / 2. {
             ball.direction.y *= -1.;
         }
         // Bottom wall
-        if -(game_size.height / 2.0) > ball_transform.translation.y {
+        if -(game_size.height / 2.0) > ball_transform.translation.y - collider.height / 2. {
             ball.direction.y *= -1.;
         }
     }
@@ -185,33 +205,45 @@ fn ball_wall_bounce(mut ball_query: Query<(&mut Ball, &mut Transform)>, game_siz
 
 fn ball_player_bounce(
     mut ball_query: Query<(&mut Ball, &mut Transform)>,
-    player_query: Query<(&Player, &Transform), Without<Ball>>,
+    player_query: Query<(&Player, &BoxCollider, &Transform), Without<Ball>>,
 ) {
     for (mut ball, mut ball_transform) in ball_query.iter_mut() {
-        for (player, player_transform) in player_query.iter() {
+        for (player, box_collider, player_transform) in player_query.iter() {
             match player.paddle {
                 Paddle::One => {
-                    if player_transform.translation.x + 30. >= ball_transform.translation.x
+                    if player_transform.translation.x + box_collider.width
+                        >= ball_transform.translation.x
                         && ball_transform.translation.y
-                            <= (player_transform.translation.y + player.size / 2.)
+                            <= (player_transform.translation.y + box_collider.height / 2.)
                         && ball_transform.translation.y
-                            >= (player_transform.translation.y - player.size / 2.)
+                            >= (player_transform.translation.y - box_collider.height / 2.)
                     {
                         ball.direction.x *= -1.;
 
                         // speed up ball
-                        speed_up_ball(&mut ball_transform, player_transform, player, &mut ball);
+                        speed_up_ball(
+                            &mut ball_transform,
+                            box_collider,
+                            player_transform,
+                            &mut ball,
+                        );
                     }
                 }
                 Paddle::Two => {
-                    if player_transform.translation.x - 30. <= ball_transform.translation.x
+                    if player_transform.translation.x - box_collider.width
+                        <= ball_transform.translation.x
                         && ball_transform.translation.y
-                            <= (player_transform.translation.y + player.size / 2.)
+                            <= (player_transform.translation.y + box_collider.height / 2.)
                         && ball_transform.translation.y
-                            >= (player_transform.translation.y - player.size / 2.)
+                            >= (player_transform.translation.y - box_collider.height / 2.)
                     {
                         ball.direction.x *= -1.;
-                        speed_up_ball(&mut ball_transform, player_transform, player, &mut ball);
+                        speed_up_ball(
+                            &mut ball_transform,
+                            box_collider,
+                            player_transform,
+                            &mut ball,
+                        );
                     }
                 }
             }
@@ -221,16 +253,16 @@ fn ball_player_bounce(
 
 fn speed_up_ball(
     ball_transform: &mut Mut<'_, Transform>,
+    box_collider: &BoxCollider,
     player_transform: &Transform,
-    player: &Player,
     ball: &mut Mut<'_, Ball>,
 ) {
     if ball_transform.translation.y
-        <= (player_transform.translation.y + ((player.size / 2.) * 2. / 3.))
+        <= (player_transform.translation.y + ((box_collider.height / 2.) * 2. / 3.))
     {
         ball.speed += 0.05
     } else if ball_transform.translation.y
-        <= (player_transform.translation.y + ((player.size / 2.) * 1. / 3.))
+        <= (player_transform.translation.y + ((box_collider.height / 2.) * 1. / 3.))
     {
         ball.speed += 0.1
     }
@@ -245,7 +277,7 @@ fn ball_out(
         // Right
         if game_size.width / 2.0 < ball_transform.translation.x {
             ball_transform.translation = Vec3::new(0., 0., 0.);
-            ball.speed = 500.;
+            ball.speed = 200.;
 
             for mut player in player_query.iter_mut() {
                 if let Paddle::One = player.paddle {
@@ -256,7 +288,7 @@ fn ball_out(
         // Left
         if -(game_size.width / 2.0) > ball_transform.translation.x {
             ball_transform.translation = Vec3::new(0., 0., 0.);
-            ball.speed = 500.;
+            ball.speed = 200.;
 
             for mut player in player_query.iter_mut() {
                 if let Paddle::Two = player.paddle {
@@ -284,3 +316,16 @@ fn update_score_board(
         score_board.sections[0].value = format!("{player_one_score}:{player_two_score}");
     }
 }
+
+fn draw_collider_gizmo(collider_query: Query<(&BoxCollider, &Transform)>, mut gizmos: Gizmos) {
+    for (collider, transform) in collider_query.iter() {
+        gizmos.rect_2d(
+            transform.translation.xy(),
+            Rot2::default(),
+            Vec2::new(collider.width, collider.height),
+            Color::hsl(123.0, 123.0, 123.0),
+        )
+    }
+}
+
+fn collider(Query: BoxCollider) {}
