@@ -240,31 +240,9 @@ fn ball_player_bounce(
                         ball.direction.x *= -1.;
                     }
                 }
-                speed_up_ball(
-                    &mut ball_transform,
-                    player_collider,
-                    player_transform,
-                    &mut ball,
-                );
+                ball.speed += 100.;
             }
         }
-    }
-}
-
-fn speed_up_ball(
-    ball_transform: &mut Mut<'_, Transform>,
-    box_collider: &BoxCollider,
-    player_transform: &Transform,
-    ball: &mut Mut<'_, Ball>,
-) {
-    if ball_transform.translation.y
-        <= (player_transform.translation.y + ((box_collider.height / 2.) * 2. / 3.))
-    {
-        ball.speed += 0.05
-    } else if ball_transform.translation.y
-        <= (player_transform.translation.y + ((box_collider.height / 2.) * 1. / 3.))
-    {
-        ball.speed += 0.1
     }
 }
 
