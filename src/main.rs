@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    math::bounding::{Aabb2d, IntersectsVolume},
+    prelude::*,
+};
 
 fn main() {
     App::new()
@@ -48,6 +51,12 @@ struct Ball {
 struct BoxCollider {
     width: f32,
     height: f32,
+}
+
+impl BoxCollider {
+    fn half_size(&self) -> Vec2 {
+        Vec2::new(self.width / 2., self.height / 2.)
+    }
 }
 
 #[derive(Component)]
@@ -209,48 +218,34 @@ fn ball_wall_bounce(
 }
 
 fn ball_player_bounce(
-    mut ball_query: Query<(&mut Ball, &mut Transform)>,
+    mut ball_query: Query<(&mut Ball, &BoxCollider, &mut Transform)>,
     player_query: Query<(&Player, &BoxCollider, &Transform), Without<Ball>>,
 ) {
-    for (mut ball, mut ball_transform) in ball_query.iter_mut() {
-        for (player, box_collider, player_transform) in player_query.iter() {
-            match player.paddle {
-                Paddle::One => {
-                    if player_transform.translation.x + box_collider.width
-                        >= ball_transform.translation.x
-                        && ball_transform.translation.y
-                            <= (player_transform.translation.y + box_collider.height / 2.)
-                        && ball_transform.translation.y
-                            >= (player_transform.translation.y - box_collider.height / 2.)
-                    {
+    for (mut ball, ball_collider, mut ball_transform) in ball_query.iter_mut() {
+        for (player, player_collider, player_transform) in player_query.iter() {
+            let player_coll = Aabb2d::new(
+                player_transform.translation.truncate(),
+                player_collider.half_size(),
+            );
+            let ball_coll = Aabb2d::new(
+                ball_transform.translation.truncate(),
+                ball_collider.half_size(),
+            );
+            if player_coll.intersects(&ball_coll) {
+                match player.paddle {
+                    Paddle::One => {
                         ball.direction.x *= -1.;
-
-                        // speed up ball
-                        speed_up_ball(
-                            &mut ball_transform,
-                            box_collider,
-                            player_transform,
-                            &mut ball,
-                        );
+                    }
+                    Paddle::Two => {
+                        ball.direction.x *= -1.;
                     }
                 }
-                Paddle::Two => {
-                    if player_transform.translation.x - box_collider.width
-                        <= ball_transform.translation.x
-                        && ball_transform.translation.y
-                            <= (player_transform.translation.y + box_collider.height / 2.)
-                        && ball_transform.translation.y
-                            >= (player_transform.translation.y - box_collider.height / 2.)
-                    {
-                        ball.direction.x *= -1.;
-                        speed_up_ball(
-                            &mut ball_transform,
-                            box_collider,
-                            player_transform,
-                            &mut ball,
-                        );
-                    }
-                }
+                speed_up_ball(
+                    &mut ball_transform,
+                    player_collider,
+                    player_transform,
+                    &mut ball,
+                );
             }
         }
     }
