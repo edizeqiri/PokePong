@@ -1,5 +1,5 @@
 use bevy::{
-    math::bounding::{Aabb2d, IntersectsVolume},
+    math::bounding::{Aabb2d, BoundingVolume, IntersectsVolume},
     prelude::*,
 };
 
@@ -218,11 +218,11 @@ fn ball_wall_bounce(
 }
 
 fn ball_player_bounce(
-    mut ball_query: Query<(&mut Ball, &BoxCollider, &mut Transform)>,
-    player_query: Query<(&Player, &BoxCollider, &Transform), Without<Ball>>,
+    mut ball_query: Query<(&mut Ball, &BoxCollider, &Transform)>,
+    player_query: Query<(&BoxCollider, &Transform), Without<Ball>>,
 ) {
-    for (mut ball, ball_collider, mut ball_transform) in ball_query.iter_mut() {
-        for (player, player_collider, player_transform) in player_query.iter() {
+    for (mut ball, ball_collider, ball_transform) in ball_query.iter_mut() {
+        for (player_collider, player_transform) in player_query.iter() {
             let player_coll = Aabb2d::new(
                 player_transform.translation.truncate(),
                 player_collider.half_size(),
@@ -231,19 +231,38 @@ fn ball_player_bounce(
                 ball_transform.translation.truncate(),
                 ball_collider.half_size(),
             );
-            if player_coll.intersects(&ball_coll) {
-                match player.paddle {
-                    Paddle::One => {
-                        ball.direction.x *= -1.;
-                    }
-                    Paddle::Two => {
-                        ball.direction.x *= -1.;
-                    }
+            let collision = collision_side(ball_coll, player_coll);
+            if let Some(side) = collision {
+                match side {
+                    Collision::LeftRight => ball.direction.x *= -1.,
+                    Collision::TopBottom => ball.direction.y *= -1.,
                 }
                 ball.speed += 100.;
             }
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+enum Collision {
+    LeftRight,
+    TopBottom,
+}
+
+fn collision_side(ball: Aabb2d, player: Aabb2d) -> Option<Collision> {
+    if !ball.intersects(&player) {
+        return None;
+    }
+
+    let closest = player.closest_point(ball.center());
+    let offset = ball.center() - closest;
+    let side = if offset.x.abs() > offset.y.abs() {
+        Collision::LeftRight
+    } else {
+        Collision::TopBottom
+    };
+
+    Some(side)
 }
 
 fn ball_out(
